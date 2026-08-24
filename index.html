@@ -7,6 +7,7 @@
 <title>Cube Rush</title>
 
 <style>
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -26,6 +27,7 @@ canvas {
     width: 100vw;
     height: 100vh;
 }
+
 
 /* =========================
    INTERFACE
@@ -49,6 +51,25 @@ canvas {
     margin-top: 5px;
     font-size: 16px;
     opacity: 0.7;
+}
+
+
+/* =========================
+   GEMMES
+========================= */
+
+#gems {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+
+    font-size: 28px;
+    font-weight: bold;
+
+    text-shadow:
+        0 0 10px rgba(255,255,255,0.3);
+
+    z-index: 10;
 }
 
 
@@ -171,12 +192,16 @@ button:active {
 }
 
 @media (min-width: 800px) {
+
     #controls {
         display: none;
     }
+
 }
+
 </style>
 </head>
+
 
 <body>
 
@@ -189,12 +214,21 @@ button:active {
 
 <div id="ui">
 
-    <div id="score">0 m</div>
+    <div id="score">
+        0 m
+    </div>
 
     <div id="best">
         Record : 0 m
     </div>
 
+</div>
+
+
+<!-- GEMMES -->
+
+<div id="gems">
+    🔷 <span id="gemCount">0</span>
 </div>
 
 
@@ -204,7 +238,9 @@ button:active {
 
 <div id="menu">
 
-    <h1>Cube Rush</h1>
+    <h1>
+        Cube Rush
+    </h1>
 
     <p>
         Va le plus loin possible !
@@ -223,7 +259,9 @@ button:active {
 
 <div id="gameOver">
 
-    <h1>GAME OVER</h1>
+    <h1>
+        GAME OVER
+    </h1>
 
     <p id="finalScore">
         Score : 0 m
@@ -261,6 +299,7 @@ button:active {
 
 <script>
 
+
 /* =====================================================
    CANVAS
 ===================================================== */
@@ -270,6 +309,7 @@ const canvas =
 
 const ctx =
     canvas.getContext("2d");
+
 
 let W = 0;
 let H = 0;
@@ -310,10 +350,24 @@ let particles = [];
 
 let distance = 0;
 
-let bonusScore = 0;
-
 let score = 0;
 
+
+/* =========================
+   GEMMES
+========================= */
+
+let gems =
+    Number(
+        localStorage.getItem(
+            "cubeRushGems"
+        )
+    ) || 0;
+
+
+/* =========================
+   RECORD
+========================= */
 
 let best =
     Number(
@@ -323,10 +377,13 @@ let best =
     ) || 0;
 
 
+/* =========================
+   AUTRES VARIABLES
+========================= */
+
 let speed = 0;
 
 let gameRunning = false;
-
 
 let spawnTimer = 0;
 
@@ -334,7 +391,7 @@ let bonusTimer = 0;
 
 
 /* =====================================================
-   RECORD
+   AFFICHAGE INITIAL
 ===================================================== */
 
 document.getElementById(
@@ -345,11 +402,18 @@ document.getElementById(
     " m";
 
 
+document.getElementById(
+    "gemCount"
+).textContent =
+    gems;
+
+
 /* =====================================================
    CONTROLES
 ===================================================== */
 
 let leftPressed = false;
+
 let rightPressed = false;
 
 
@@ -365,23 +429,29 @@ document.addEventListener(
             e.key === "ArrowLeft" ||
             e.key === "a"
         ) {
+
             leftPressed = true;
         }
+
 
         if (
             e.key === "ArrowRight" ||
             e.key === "d"
         ) {
+
             rightPressed = true;
         }
+
 
         if (
             e.key === "ArrowUp" ||
             e.key === " " ||
             e.key === "w"
         ) {
+
             jump();
         }
+
     }
 );
 
@@ -394,15 +464,19 @@ document.addEventListener(
             e.key === "ArrowLeft" ||
             e.key === "a"
         ) {
+
             leftPressed = false;
         }
+
 
         if (
             e.key === "ArrowRight" ||
             e.key === "d"
         ) {
+
             rightPressed = false;
         }
+
     }
 );
 
@@ -511,14 +585,11 @@ function startGame() {
 
     distance = 0;
 
-    bonusScore = 0;
-
     score = 0;
 
 
     /*
-        Départ volontairement lent.
-        Le jeu accélérera progressivement.
+        Départ lent.
     */
 
     speed = 2;
@@ -544,7 +615,19 @@ function startGame() {
 
     document.getElementById(
         "score"
-    ).textContent = "0 m";
+    ).textContent =
+        "0 m";
+
+
+    /*
+        On actualise aussi
+        les gemmes.
+    */
+
+    document.getElementById(
+        "gemCount"
+    ).textContent =
+        gems;
 }
 
 
@@ -574,11 +657,6 @@ function jump() {
 
 function spawnObstacle() {
 
-    /*
-        Les obstacles ont maintenant
-        des tailles différentes.
-    */
-
     const width =
         35 +
         Math.random() * 75;
@@ -588,11 +666,6 @@ function spawnObstacle() {
         35 +
         Math.random() * 90;
 
-
-    /*
-        On garde une zone de sécurité
-        autour de la piste.
-    */
 
     const margin = 45;
 
@@ -692,7 +765,7 @@ function createParticles(
 
 
 /* =====================================================
-   COLLISION RECTANGLE
+   COLLISION
 ===================================================== */
 
 function collision(
@@ -836,7 +909,7 @@ function update() {
 
 
     /* ---------------------------------
-       DISTANCE
+       DISTANCE / SCORE
     --------------------------------- */
 
     distance +=
@@ -844,14 +917,12 @@ function update() {
 
 
     /*
-        Le score est toujours :
-        distance + bonus
+        Le score dépend uniquement
+        de la distance.
     */
 
     score =
-        Math.floor(distance)
-        +
-        bonusScore;
+        Math.floor(distance);
 
 
     document.getElementById(
@@ -866,10 +937,6 @@ function update() {
 
     speed += 0.004;
 
-
-    /*
-        Vitesse maximale.
-    */
 
     speed =
         Math.min(
@@ -891,11 +958,6 @@ function update() {
 
         spawnObstacle();
 
-
-        /*
-            Plus la vitesse augmente,
-            plus les obstacles apparaissent.
-        */
 
         spawnTimer =
             Math.max(
@@ -954,7 +1016,7 @@ function update() {
 
 
     /* ---------------------------------
-       BONUS
+       BONUS / GEMMES
     --------------------------------- */
 
     bonusTimer--;
@@ -1010,11 +1072,31 @@ function update() {
         ) {
 
             /*
-                Bonus permanent de +10
-                au score.
+                Chaque bonus donne
+                UNE gemme.
             */
 
-            bonusScore += 10;
+            gems += 1;
+
+
+            /*
+                Sauvegarde immédiate.
+            */
+
+            localStorage.setItem(
+                "cubeRushGems",
+                gems
+            );
+
+
+            /*
+                Mise à jour du compteur.
+            */
+
+            document.getElementById(
+                "gemCount"
+            ).textContent =
+                gems;
 
 
             createParticles(
@@ -1125,6 +1207,18 @@ function gameOver() {
     }
 
 
+    /*
+        IMPORTANT :
+        On sauvegarde les GEMMES,
+        pas le record.
+    */
+
+    localStorage.setItem(
+        "cubeRushGems",
+        gems
+    );
+
+
     document.getElementById(
         "finalScore"
     ).textContent =
@@ -1142,6 +1236,12 @@ function gameOver() {
 
 
     document.getElementById(
+        "gemCount"
+    ).textContent =
+        gems;
+
+
+    document.getElementById(
         "gameOver"
     ).style.display =
         "flex";
@@ -1154,9 +1254,9 @@ function gameOver() {
 
 function draw() {
 
-    /*
-        Fond
-    */
+    /* ---------------------------------
+       FOND
+    --------------------------------- */
 
     const gradient =
         ctx.createLinearGradient(
@@ -1191,9 +1291,9 @@ function draw() {
     );
 
 
-    /*
-        Grille
-    */
+    /* ---------------------------------
+       GRILLE
+    --------------------------------- */
 
     ctx.strokeStyle =
         "rgba(120,80,255,0.15)";
@@ -1227,9 +1327,9 @@ function draw() {
     }
 
 
-    /*
-        Piste
-    */
+    /* ---------------------------------
+       PISTE
+    --------------------------------- */
 
     ctx.fillStyle =
         "#101020";
@@ -1266,9 +1366,9 @@ function draw() {
     );
 
 
-    /*
-        Obstacles
-    */
+    /* ---------------------------------
+       OBSTACLES
+    --------------------------------- */
 
     for (
         const obstacle
@@ -1320,9 +1420,9 @@ function draw() {
     }
 
 
-    /*
-        Bonus
-    */
+    /* ---------------------------------
+       BONUS
+    --------------------------------- */
 
     for (
         const bonus
@@ -1376,9 +1476,9 @@ function draw() {
     }
 
 
-    /*
-        Cube
-    */
+    /* ---------------------------------
+       CUBE
+    --------------------------------- */
 
     if (player !== null) {
 
@@ -1448,9 +1548,9 @@ function draw() {
     }
 
 
-    /*
-        Particules
-    */
+    /* ---------------------------------
+       PARTICULES
+    --------------------------------- */
 
     for (
         const particle
