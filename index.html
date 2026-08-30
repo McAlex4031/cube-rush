@@ -62,14 +62,40 @@ canvas {
     position: fixed;
     top: 20px;
     right: 20px;
-
     font-size: 28px;
     font-weight: bold;
+    text-shadow: 0 0 10px rgba(255,255,255,0.3);
+    z-index: 10;
+}
+
+
+/* =========================
+   MESSAGE SPECIAL
+========================= */
+
+#rushMessage {
+    position: fixed;
+    top: 42%;
+    left: 50%;
+
+    transform: translate(-50%, -50%);
+
+    font-size: 42px;
+    font-weight: bold;
+
+    text-align: center;
+
+    opacity: 0;
+
+    pointer-events: none;
+
+    z-index: 30;
 
     text-shadow:
-        0 0 10px rgba(255,255,255,0.3);
+        0 0 15px white,
+        0 0 35px #8b5cff;
 
-    z-index: 10;
+    transition: opacity 0.25s;
 }
 
 
@@ -225,11 +251,12 @@ button:active {
 </div>
 
 
-<!-- GEMMES -->
-
 <div id="gems">
     🔷 <span id="gemCount">0</span>
 </div>
+
+
+<div id="rushMessage"></div>
 
 
 <!-- =========================
@@ -280,17 +307,11 @@ button:active {
 
 <div id="controls">
 
-    <div
-        class="control"
-        id="left"
-    >
+    <div class="control" id="left">
         ◀
     </div>
 
-    <div
-        class="control"
-        id="right"
-    >
+    <div class="control" id="right">
         ▶
     </div>
 
@@ -336,7 +357,7 @@ resize();
 
 
 /* =====================================================
-   VARIABLES DU JEU
+   VARIABLES
 ===================================================== */
 
 let player = null;
@@ -353,10 +374,6 @@ let distance = 0;
 let score = 0;
 
 
-/* =========================
-   GEMMES
-========================= */
-
 let gems =
     Number(
         localStorage.getItem(
@@ -364,10 +381,6 @@ let gems =
         )
     ) || 0;
 
-
-/* =========================
-   RECORD
-========================= */
 
 let best =
     Number(
@@ -377,17 +390,41 @@ let best =
     ) || 0;
 
 
-/* =========================
-   AUTRES VARIABLES
-========================= */
-
 let speed = 0;
 
 let gameRunning = false;
 
+
 let spawnTimer = 0;
 
 let bonusTimer = 0;
+
+
+/* =====================================================
+   RUSH
+===================================================== */
+
+let rushTimer = 0;
+
+let rushCooldown = 300;
+
+let rushType = null;
+
+let normalSpeedBeforeRush = 0;
+
+
+/*
+    5 secondes à 60 FPS
+*/
+
+const RUSH_DURATION = 300;
+
+
+/*
+    Types de rush :
+    GEM = uniquement des gemmes
+    DANGER = beaucoup d'obstacles
+*/
 
 
 /* =====================================================
@@ -555,7 +592,7 @@ rightButton.addEventListener(
 
 
 /* =====================================================
-   DEMARRER UNE PARTIE
+   DEMARRER
 ===================================================== */
 
 function startGame() {
@@ -589,15 +626,30 @@ function startGame() {
 
 
     /*
-        Départ lent.
+        Départ encore plus lent.
     */
 
-    speed = 2;
+    speed = 1.5;
 
 
-    spawnTimer = 90;
+    /*
+        On laisse un peu de temps
+        avant le premier obstacle.
+    */
 
-    bonusTimer = 160;
+    spawnTimer = 100;
+
+    bonusTimer = 120;
+
+
+    rushTimer = 0;
+
+    rushCooldown =
+        900 +
+        Math.random() * 900;
+
+
+    rushType = null;
 
 
     gameRunning = true;
@@ -618,11 +670,6 @@ function startGame() {
     ).textContent =
         "0 m";
 
-
-    /*
-        On actualise aussi
-        les gemmes.
-    */
 
     document.getElementById(
         "gemCount"
@@ -657,6 +704,24 @@ function jump() {
 
 function spawnObstacle() {
 
+    /*
+        En dehors du rush :
+        9 / 10 = normal
+        1 / 10 = spécial
+    */
+
+    let special = false;
+
+
+    if (
+        rushType !== "gem" &&
+        Math.random() < 0.10
+    ) {
+
+        special = true;
+    }
+
+
     const width =
         35 +
         Math.random() * 75;
@@ -680,21 +745,93 @@ function spawnObstacle() {
         );
 
 
-    obstacles.push({
+    /*
+        Obstacle normal
+        = ROSE
+    */
 
-        x: x,
+    if (!special) {
 
-        y: -height,
+        obstacles.push({
 
-        width: width,
+            x: x,
 
-        height: height
-    });
+            y: -height,
+
+            width: width,
+
+            height: height,
+
+            type: "normal"
+        });
+
+        return;
+    }
+
+
+    /*
+        50% jaune
+        50% rouge
+    */
+
+    if (
+        Math.random() < 0.5
+    ) {
+
+        /*
+            JAUNE :
+            obstacle mobile
+        */
+
+        obstacles.push({
+
+            x: x,
+
+            y: -height,
+
+            width: width,
+
+            height: height,
+
+            type: "moving",
+
+            baseX: x,
+
+            moveDirection:
+                Math.random() < 0.5
+                ? -1
+                : 1,
+
+            moveSpeed: 0.45,
+
+            moveRange: 80
+        });
+
+    } else {
+
+        /*
+            ROUGE :
+            obstacle rapide
+        */
+
+        obstacles.push({
+
+            x: x,
+
+            y: -height,
+
+            width: width,
+
+            height: height,
+
+            type: "fast"
+        });
+    }
 }
 
 
 /* =====================================================
-   CREER UN BONUS
+   CREER UNE GEMME
 ===================================================== */
 
 function spawnBonus() {
@@ -797,6 +934,118 @@ function collision(
 
 
 /* =====================================================
+   MESSAGE RUSH
+===================================================== */
+
+function showRushMessage(
+    text
+) {
+
+    const message =
+        document.getElementById(
+            "rushMessage"
+        );
+
+
+    message.textContent =
+        text;
+
+
+    message.style.opacity = 1;
+
+
+    setTimeout(
+        function() {
+
+            message.style.opacity = 0;
+
+        },
+        1800
+    );
+}
+
+
+/* =====================================================
+   DEMARRER UN RUSH
+===================================================== */
+
+function startRush() {
+
+    /*
+        Une fois sur deux :
+        GEM RUSH
+        ou
+        DANGER RUSH
+    */
+
+    if (
+        Math.random() < 0.5
+    ) {
+
+        rushType = "gem";
+
+        showRushMessage(
+            "💎 GEM RUSH !"
+        );
+
+    } else {
+
+        rushType = "danger";
+
+        /*
+            On mémorise la vitesse normale
+            avant d'accélérer.
+        */
+
+        normalSpeedBeforeRush =
+            speed;
+
+
+        showRushMessage(
+            "⚠️ DANGER RUSH !"
+        );
+    }
+
+
+    rushTimer =
+        RUSH_DURATION;
+}
+
+
+/* =====================================================
+   FIN DU RUSH
+===================================================== */
+
+function endRush() {
+
+    if (
+        rushType === "danger"
+    ) {
+
+        /*
+            Retour exactement à la vitesse
+            qu'on avait avant le Danger Rush.
+        */
+
+        speed =
+            normalSpeedBeforeRush;
+    }
+
+
+    rushType = null;
+
+
+    /*
+        Nouveau délai avant le prochain rush.
+    */
+
+    rushCooldown =
+        900 +
+        Math.random() * 900;
+}
+
+
+/* =====================================================
    UPDATE
 ===================================================== */
 
@@ -808,7 +1057,7 @@ function update() {
 
 
     /* ---------------------------------
-       DEPLACEMENT
+       DEPLACEMENT JOUEUR
     --------------------------------- */
 
     if (leftPressed) {
@@ -909,17 +1158,12 @@ function update() {
 
 
     /* ---------------------------------
-       DISTANCE / SCORE
+       DISTANCE
     --------------------------------- */
 
     distance +=
         speed * 0.05;
 
-
-    /*
-        Le score dépend uniquement
-        de la distance.
-    */
 
     score =
         Math.floor(distance);
@@ -932,17 +1176,102 @@ function update() {
 
 
     /* ---------------------------------
-       ACCELERATION
+       ACCELERATION NORMALE
     --------------------------------- */
 
-    speed += 0.004;
+    /*
+        Accélération plus lente
+        pour des parties plus longues.
+    */
+
+    if (
+        rushType !== "danger"
+    ) {
+
+        speed += 0.002;
+
+        speed =
+            Math.min(
+                speed,
+                10
+            );
+    }
 
 
-    speed =
-        Math.min(
-            speed,
-            12
-        );
+    /* ---------------------------------
+       RUSH
+    --------------------------------- */
+
+    if (
+        rushType === null
+    ) {
+
+        rushCooldown--;
+
+
+        if (
+            rushCooldown <= 0
+        ) {
+
+            startRush();
+        }
+
+    } else {
+
+        rushTimer--;
+
+
+        /*
+            DANGER RUSH
+        */
+
+        if (
+            rushType === "danger"
+        ) {
+
+            /*
+                Accélération temporaire.
+            */
+
+            speed += 0.01;
+
+            speed =
+                Math.min(
+                    speed,
+                    normalSpeedBeforeRush + 3
+                );
+        }
+
+
+        /*
+            GEM RUSH
+        */
+
+        if (
+            rushType === "gem"
+        ) {
+
+            /*
+                Le jeu ralentit légèrement
+                pour laisser le temps de
+                récupérer les gemmes.
+            */
+
+            speed =
+                Math.max(
+                    1.5,
+                    speed
+                );
+        }
+
+
+        if (
+            rushTimer <= 0
+        ) {
+
+            endRush();
+        }
+    }
 
 
     /* ---------------------------------
@@ -956,15 +1285,44 @@ function update() {
         spawnTimer <= 0
     ) {
 
-        spawnObstacle();
+        /*
+            GEM RUSH :
+            aucun obstacle.
+        */
+
+        if (
+            rushType !== "gem"
+        ) {
+
+            spawnObstacle();
+        }
 
 
-        spawnTimer =
-            Math.max(
-                35,
-                105 -
-                speed * 5
-            );
+        /*
+            Danger Rush :
+            obstacles beaucoup plus fréquents.
+        */
+
+        if (
+            rushType === "danger"
+        ) {
+
+            spawnTimer =
+                Math.max(
+                    25,
+                    55 -
+                    speed * 2
+                );
+
+        } else {
+
+            spawnTimer =
+                Math.max(
+                    55,
+                    125 -
+                    speed * 5
+                );
+        }
     }
 
 
@@ -985,9 +1343,78 @@ function update() {
             obstacles[i];
 
 
-        obstacle.y +=
-            speed;
+        /* =========================
+           VITESSE DE L'OBSTACLE
+        ========================= */
 
+        if (
+            obstacle.type === "fast"
+        ) {
+
+            /*
+                ROUGE :
+                rapide
+            */
+
+            obstacle.y +=
+                speed + 4;
+
+        } else {
+
+            /*
+                ROSE / JAUNE :
+                vitesse normale
+            */
+
+            obstacle.y +=
+                speed;
+        }
+
+
+        /* =========================
+           MOUVEMENT JAUNE
+        ========================= */
+
+        if (
+            obstacle.type === "moving"
+        ) {
+
+            /*
+                Mouvement horizontal
+                volontairement lent.
+            */
+
+            obstacle.x +=
+                obstacle.moveSpeed *
+                obstacle.moveDirection;
+
+
+            if (
+                obstacle.x <
+                obstacle.baseX -
+                obstacle.moveRange
+            ) {
+
+                obstacle.moveDirection =
+                    1;
+            }
+
+
+            if (
+                obstacle.x >
+                obstacle.baseX +
+                obstacle.moveRange
+            ) {
+
+                obstacle.moveDirection =
+                    -1;
+            }
+        }
+
+
+        /* =========================
+           COLLISION
+        ========================= */
 
         if (
             collision(
@@ -1001,6 +1428,10 @@ function update() {
             return;
         }
 
+
+        /* =========================
+           SUPPRESSION
+        ========================= */
 
         if (
             obstacle.y >
@@ -1016,7 +1447,7 @@ function update() {
 
 
     /* ---------------------------------
-       BONUS / GEMMES
+       GEMMES
     --------------------------------- */
 
     bonusTimer--;
@@ -1026,14 +1457,41 @@ function update() {
         bonusTimer <= 0
     ) {
 
-        spawnBonus();
+        /*
+            GEM RUSH :
+            beaucoup plus de gemmes.
+        */
 
+        if (
+            rushType === "gem"
+        ) {
 
-        bonusTimer =
-            180 +
-            Math.random() * 100;
+            /*
+                On crée plusieurs gemmes.
+            */
+
+            spawnBonus();
+
+            spawnBonus();
+
+            spawnBonus();
+
+            bonusTimer = 25;
+
+        } else {
+
+            spawnBonus();
+
+            bonusTimer =
+                150 +
+                Math.random() * 70;
+        }
     }
 
+
+    /* ---------------------------------
+       COLLECTE GEMMES
+    --------------------------------- */
 
     for (
         let i =
@@ -1071,27 +1529,14 @@ function update() {
             )
         ) {
 
-            /*
-                Chaque bonus donne
-                UNE gemme.
-            */
-
             gems += 1;
 
-
-            /*
-                Sauvegarde immédiate.
-            */
 
             localStorage.setItem(
                 "cubeRushGems",
                 gems
             );
 
-
-            /*
-                Mise à jour du compteur.
-            */
 
             document.getElementById(
                 "gemCount"
@@ -1206,12 +1651,6 @@ function gameOver() {
         );
     }
 
-
-    /*
-        IMPORTANT :
-        On sauvegarde les GEMMES,
-        pas le record.
-    */
 
     localStorage.setItem(
         "cubeRushGems",
@@ -1375,14 +1814,37 @@ function draw() {
         of obstacles
     ) {
 
+        let color = "#ff2bd6";
+
+
+        /*
+            ROSE = normal
+            JAUNE = mobile
+            ROUGE = rapide
+        */
+
+        if (
+            obstacle.type === "moving"
+        ) {
+
+            color = "#ffe600";
+
+        } else if (
+            obstacle.type === "fast"
+        ) {
+
+            color = "#ff3030";
+        }
+
+
         ctx.fillStyle =
-            "#ff2bd6";
+            color;
 
 
         ctx.shadowBlur = 20;
 
         ctx.shadowColor =
-            "#ff2bd6";
+            color;
 
 
         ctx.fillRect(
@@ -1421,7 +1883,7 @@ function draw() {
 
 
     /* ---------------------------------
-       BONUS
+       GEMMES
     --------------------------------- */
 
     for (
@@ -1480,7 +1942,9 @@ function draw() {
        CUBE
     --------------------------------- */
 
-    if (player !== null) {
+    if (
+        player !== null
+    ) {
 
         ctx.save();
 
@@ -1583,7 +2047,7 @@ function draw() {
 
 
 /* =====================================================
-   BOUCLE PRINCIPALE
+   BOUCLE
 ===================================================== */
 
 function loop() {
