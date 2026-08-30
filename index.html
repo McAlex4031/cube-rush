@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<title>Cube Rush</title>
+
+<style>
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    touch-action: none;
+}
+
+body {
+    overflow: hidden;
+    background: #050510;
+    font-family: Arial, sans-serif;
+    color: white;
+}
+
+canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+}
+
+
+/* =========================
+   INTERFACE
+========================= */
+
+#ui {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+#score {
+    font-size: 28px;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(255,255,255,0.3);
+}
+
+#best {
+    margin-top: 5px;
+    font-size: 16px;
+    opacity: 0.7;
+}
+
+
+/* =========================
+   GEMMES
+========================= */
+
+#gems {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(255,255,255,0.3);
+    z-index: 10;
+}
+
+
+/* =========================
+   MESSAGE SPECIAL
+========================= */
+
+#rushMessage {
+    position: fixed;
+    top: 42%;
+    left: 50%;
+
+    transform: translate(-50%, -50%);
+
+    font-size: 42px;
+    font-weight: bold;
+
+    text-align: center;
+
+    opacity: 0;
+
+    pointer-events: none;
+
+    z-index: 30;
+
+    text-shadow:
+        0 0 15px white,
+        0 0 35px #8b5cff;
+
+    transition: opacity 0.25s;
+}
+
+
+/* =========================
+   MENU / GAME OVER
+========================= */
+
+#menu,
+#gameOver {
+    position: fixed;
+    inset: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+
+    background:
+        radial-gradient(
+            circle,
+            rgba(139,92,255,0.2),
+            rgba(0,0,0,0.9)
+        );
+
+    z-index: 20;
+    text-align: center;
+}
+
+#gameOver {
+    display: none;
+}
+
+#menu h1,
+#gameOver h1 {
+    font-size: 58px;
+    margin-bottom: 10px;
+
+    text-shadow:
+        0 0 20px #8b5cff,
+        0 0 40px #8b5cff;
+}
+
+#menu p {
+    opacity: 0.7;
+    margin-bottom: 30px;
+    font-size: 18px;
+}
+
+#gameOver p {
+    font-size: 22px;
+    margin-bottom: 25px;
+}
+
+button {
+    border: none;
+    border-radius: 14px;
+
+    padding: 15px 35px;
+
+    font-size: 20px;
+    font-weight: bold;
+
+    background: #8b5cff;
+    color: white;
+
+    cursor: pointer;
+
+    box-shadow:
+        0 0 20px rgba(139,92,255,0.6);
+
+    transition: transform 0.1s;
+}
+
+button:active {
+    transform: scale(0.95);
+}
+
+
+/* =========================
+   CONTROLES MOBILE
+========================= */
+
+#controls {
+    position: fixed;
+    bottom: 25px;
+    left: 0;
+
+    width: 100%;
+
+    display: flex;
+    justify-content: space-between;
+
+    padding: 0 25px;
+
+    z-index: 15;
+}
+
+.control {
+    width: 75px;
+    height: 75px;
+
+    border-radius: 20px;
+
+    border:
+        2px solid
+        rgba(255,255,255,0.3);
+
+    background:
+        rgba(255,255,255,0.08);
+
+    color: white;
+
+    font-size: 32px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    user-select: none;
+}
+
+@media (min-width: 800px) {
+
+    #controls {
+        display: none;
+    }
+
+}
+
+</style>
+</head>
+
+
+<body>
+
+<canvas id="game"></canvas>
+
+
+<!-- =========================
+     UI
+========================= -->
+
+<div id="ui">
+
+    <div id="score">
+        0 m
+    </div>
+
+    <div id="best">
+        Record : 0 m
+    </div>
+
+</div>
+
+
+<div id="gems">
+    🔷 <span id="gemCount">0</span>
+</div>
+
+
+<div id="rushMessage"></div>
+
+
+<!-- =========================
+     MENU
+========================= -->
+
+<div id="menu">
+
+    <h1>
+        Cube Rush
+    </h1>
+
+    <p>
+        Va le plus loin possible !
+    </p>
+
+    <button onclick="startGame()">
+        JOUER
+    </button>
+
+</div>
+
+
+<!-- =========================
+     GAME OVER
+========================= -->
+
+<div id="gameOver">
+
+    <h1>
+        GAME OVER
+    </h1>
+
+    <p id="finalScore">
+        Score : 0 m
+    </p>
+
+    <button onclick="startGame()">
+        REJOUER
+    </button>
+
+</div>
+
+
+<!-- =========================
+     CONTROLES
+========================= -->
+
+<div id="controls">
+
+    <div class="control" id="left">
+        ◀
+    </div>
+
+    <div class="control" id="right">
+        ▶
+    </div>
+
+</div>
+
+
+<script>
+
+
+/* =====================================================
+   CANVAS
+===================================================== */
+
+const canvas =
+    document.getElementById("game");
+
+const ctx =
+    canvas.getContext("2d");
+
+
+let W = 0;
+let H = 0;
+
+
+function resize() {
+
+    W =
+        canvas.width =
+        window.innerWidth;
+
+    H =
+        canvas.height =
+        window.innerHeight;
+}
+
+
+window.addEventListener(
+    "resize",
+    resize
+);
+
+resize();
+
+
+/* =====================================================
+   VARIABLES
+===================================================== */
+
+let player = null;
+
+let obstacles = [];
+
+let bonuses = [];
+
+let particles = [];
+
+
+let distance = 0;
+
+let score = 0;
+
+
+let gems =
+    Number(
+        localStorage.getItem(
+            "cubeRushGems"
+        )
+    ) || 0;
+
+
+let best =
+    Number(
+        localStorage.getItem(
+            "cubeRushBest"
+        )
+    ) || 0;
+
+
+let speed = 0;
+
+let gameRunning = false;
+
+
+let spawnTimer = 0;
+
+let bonusTimer = 0;
+
+
+/* =====================================================
+   RUSH
+===================================================== */
+
+let rushTimer = 0;
+
+let rushCooldown = 300;
+
+let rushType = null;
+
+let normalSpeedBeforeRush = 0;
+
+
+/*
+    5 secondes à 60 FPS
+*/
+
+const RUSH_DURATION = 300;
+
+
+/*
+    Types de rush :
+    GEM = uniquement des gemmes
+    DANGER = beaucoup d'obstacles
+*/
+
+
+/* =====================================================
+   AFFICHAGE INITIAL
+===================================================== */
+
+document.getElementById(
+    "best"
+).textContent =
+    "Record : " +
+    best +
+    " m";
+
+
+document.getElementById(
+    "gemCount"
+).textContent =
+    gems;
+
+
+/* =====================================================
+   CONTROLES
+===================================================== */
+
+let leftPressed = false;
+
+let rightPressed = false;
+
+
+/* =========================
+   CLAVIER
+========================= */
+
+document.addEventListener(
+    "keydown",
+    function(e) {
+
+        if (
+            e.key === "ArrowLeft" ||
+            e.key === "a"
+        ) {
+
+            leftPressed = true;
+        }
+
+
+        if (
+            e.key === "ArrowRight" ||
+            e.key === "d"
+        ) {
+
+            rightPressed = true;
+        }
+
+
+        if (
+            e.key === "ArrowUp" ||
+            e.key === " " ||
+            e.key === "w"
+        ) {
+
+            jump();
+        }
+
+    }
+);
+
+
+document.addEventListener(
+    "keyup",
+    function(e) {
+
+        if (
+            e.key === "ArrowLeft" ||
+            e.key === "a"
+        ) {
+
+            leftPressed = false;
+        }
+
+
+        if (
+            e.key === "ArrowRight" ||
+            e.key === "d"
+        ) {
+
+            rightPressed = false;
+        }
+
+    }
+);
+
+
+/* =========================
+   MOBILE
+========================= */
+
+const leftButton =
+    document.getElementById("left");
+
+const rightButton =
+    document.getElementById("right");
+
+
+leftButton.addEventListener(
+    "touchstart",
+    function(e) {
+
+        e.preventDefault();
+
+        leftPressed = true;
+    }
+);
+
+
+leftButton.addEventListener(
+    "touchend",
+    function(e) {
+
+        e.preventDefault();
+
+        leftPressed = false;
+    }
+);
+
+
+leftButton.addEventListener(
+    "touchcancel",
+    function() {
+
+        leftPressed = false;
+    }
+);
+
+
+rightButton.addEventListener(
+    "touchstart",
+    function(e) {
+
+        e.preventDefault();
+
+        rightPressed = true;
+    }
+);
+
+
+rightButton.addEventListener(
+    "touchend",
+    function(e) {
+
+        e.preventDefault();
+
+        rightPressed = false;
+    }
+);
+
+
+rightButton.addEventListener(
+    "touchcancel",
+    function() {
+
+        rightPressed = false;
+    }
+);
+
+
+/* =====================================================
+   DEMARRER
+===================================================== */
+
+function startGame() {
+
+    player = {
+
+        x: W / 2 - 21,
+
+        y: H - 150,
+
+        size: 42,
+
+        vx: 0,
+
+        vy: 0,
+
+        grounded: true
+    };
+
+
+    obstacles = [];
+
+    bonuses = [];
+
+    particles = [];
+
+
+    distance = 0;
+
+    score = 0;
+
+
+    /*
+        Départ encore plus lent.
+    */
+
+    speed = 1.5;
+
+
+    /*
+        On laisse un peu de temps
+        avant le premier obstacle.
+    */
+
+    spawnTimer = 100;
+
+    bonusTimer = 120;
+
+
+    rushTimer = 0;
+
+    rushCooldown =
+        900 +
+        Math.random() * 900;
+
+
+    rushType = null;
+
+
+    gameRunning = true;
+
+
+    document.getElementById(
+        "menu"
+    ).style.display = "none";
+
+
+    document.getElementById(
+        "gameOver"
+    ).style.display = "none";
+
+
+    document.getElementById(
+        "score"
+    ).textContent =
+        "0 m";
+
+
+    document.getElementById(
+        "gemCount"
+    ).textContent =
+        gems;
+}
+
+
+/* =====================================================
+   SAUT
+===================================================== */
+
+function jump() {
+
+    if (!gameRunning) {
+        return;
+    }
+
+
+    if (player.grounded) {
+
+        player.vy = -14;
+
+        player.grounded = false;
+    }
+}
+
+
+/* =====================================================
+   CREER UN OBSTACLE
+===================================================== */
+
+function spawnObstacle() {
+
+    /*
+        En dehors du rush :
+        9 / 10 = normal
+        1 / 10 = spécial
+    */
+
+    let special = false;
+
+
+    if (
+        rushType !== "gem" &&
+        Math.random() < 0.10
+    ) {
+
+        special = true;
+    }
+
+
+    const width =
+        35 +
+        Math.random() * 75;
+
+
+    const height =
+        35 +
+        Math.random() * 90;
+
+
+    const margin = 45;
+
+
+    const x =
+        margin +
+        Math.random() *
+        (
+            W -
+            margin * 2 -
+            width
+        );
+
+
+    /*
+        Obstacle normal
+        = ROSE
+    */
+
+    if (!special) {
+
+        obstacles.push({
+
+            x: x,
+
+            y: -height,
+
+            width: width,
+
+            height: height,
+
+            type: "normal"
+        });
+
+        return;
+    }
+
+
+    /*
+        50% jaune
+        50% rouge
+    */
+
+    if (
+        Math.random() < 0.5
+    ) {
+
+        /*
+            JAUNE :
+            obstacle mobile
+        */
+
+        obstacles.push({
+
+            x: x,
+
+            y: -height,
+
+            width: width,
+
+            height: height,
+
+            type: "moving",
+
+            baseX: x,
+
+            moveDirection:
+                Math.random() < 0.5
+                ? -1
+                : 1,
+
+            moveSpeed: 0.45,
+
+            moveRange: 80
+        });
+
+    } else {
+
+        /*
+            ROUGE :
+            obstacle rapide
+        */
+
+        obstacles.push({
+
+            x: x,
+
+            y: -height,
+
+            width: width,
+
+            height: height,
+
+            type: "fast"
+        });
+    }
+}
+
+
+/* =====================================================
+   CREER UNE GEMME
+===================================================== */
+
+function spawnBonus() {
+
+    const size = 24;
+
+    const margin = 50;
+
+
+    const x =
+        margin +
+        Math.random() *
+        (
+            W -
+            margin * 2 -
+            size
+        );
+
+
+    bonuses.push({
+
+        x: x,
+
+        y: -size,
+
+        size: size
+    });
+}
+
+
+/* =====================================================
+   PARTICULES
+===================================================== */
+
+function createParticles(
+    x,
+    y
+) {
+
+    for (
+        let i = 0;
+        i < 20;
+        i++
+    ) {
+
+        particles.push({
+
+            x: x,
+
+            y: y,
+
+            vx:
+                (
+                    Math.random()
+                    - 0.5
+                ) * 7,
+
+            vy:
+                (
+                    Math.random()
+                    - 0.5
+                ) * 7,
+
+            life: 30
+        });
+    }
+}
+
+
+/* =====================================================
+   COLLISION
+===================================================== */
+
+function collision(
+    a,
+    b
+) {
+
+    return (
+
+        a.x <
+        b.x + b.width
+
+        &&
+
+        a.x + a.size >
+        b.x
+
+        &&
+
+        a.y <
+        b.y + b.height
+
+        &&
+
+        a.y + a.size >
+        b.y
+    );
+}
+
+
+/* =====================================================
+   MESSAGE RUSH
+===================================================== */
+
+function showRushMessage(
+    text
+) {
+
+    const message =
+        document.getElementById(
+            "rushMessage"
+        );
+
+
+    message.textContent =
+        text;
+
+
+    message.style.opacity = 1;
+
+
+    setTimeout(
+        function() {
+
+            message.style.opacity = 0;
+
+        },
+        1800
+    );
+}
+
+
+/* =====================================================
+   DEMARRER UN RUSH
+===================================================== */
+
+function startRush() {
+
+    /*
+        Une fois sur deux :
+        GEM RUSH
+        ou
+        DANGER RUSH
+    */
+
+    if (
+        Math.random() < 0.5
+    ) {
+
+        rushType = "gem";
+
+        showRushMessage(
+            "💎 GEM RUSH !"
+        );
+
+    } else {
+
+        rushType = "danger";
+
+        /*
+            On mémorise la vitesse normale
+            avant d'accélérer.
+        */
+
+        normalSpeedBeforeRush =
+            speed;
+
+
+        showRushMessage(
+            "⚠️ DANGER RUSH !"
+        );
+    }
+
+
+    rushTimer =
+        RUSH_DURATION;
+}
+
+
+/* =====================================================
+   FIN DU RUSH
+===================================================== */
+
+function endRush() {
+
+    if (
+        rushType === "danger"
+    ) {
+
+        /*
+            Retour exactement à la vitesse
+            qu'on avait avant le Danger Rush.
+        */
+
+        speed =
+            normalSpeedBeforeRush;
+    }
+
+
+    rushType = null;
+
+
+    /*
+        Nouveau délai avant le prochain rush.
+    */
+
+    rushCooldown =
+        900 +
+        Math.random() * 900;
+}
+
+
+/* =====================================================
+   UPDATE
+===================================================== */
+
+function update() {
+
+    if (!gameRunning) {
+        return;
+    }
+
+
+    /* ---------------------------------
+       DEPLACEMENT JOUEUR
+    --------------------------------- */
+
+    if (leftPressed) {
+
+        player.vx -= 0.8;
+    }
+
+
+    if (rightPressed) {
+
+        player.vx += 0.8;
+    }
+
+
+    if (
+        !leftPressed &&
+        !rightPressed
+    ) {
+
+        player.vx *= 0.85;
+    }
+
+
+    player.vx =
+        Math.max(
+            -8,
+            Math.min(
+                8,
+                player.vx
+            )
+        );
+
+
+    player.x +=
+        player.vx;
+
+
+    /* ---------------------------------
+       LIMITES
+    --------------------------------- */
+
+    const wall = 35;
+
+
+    if (
+        player.x <
+        wall
+    ) {
+
+        player.x = wall;
+
+        player.vx = 0;
+    }
+
+
+    if (
+        player.x +
+        player.size >
+        W - wall
+    ) {
+
+        player.x =
+            W -
+            wall -
+            player.size;
+
+        player.vx = 0;
+    }
+
+
+    /* ---------------------------------
+       GRAVITE
+    --------------------------------- */
+
+    player.vy += 0.7;
+
+    player.y +=
+        player.vy;
+
+
+    const groundY =
+        H - 150;
+
+
+    if (
+        player.y >=
+        groundY
+    ) {
+
+        player.y =
+            groundY;
+
+        player.vy = 0;
+
+        player.grounded =
+            true;
+    }
+
+
+    /* ---------------------------------
+       DISTANCE
+    --------------------------------- */
+
+    distance +=
+        speed * 0.05;
+
+
+    score =
+        Math.floor(distance);
+
+
+    document.getElementById(
+        "score"
+    ).textContent =
+        score + " m";
+
+
+    /* ---------------------------------
+       ACCELERATION NORMALE
+    --------------------------------- */
+
+    /*
+        Accélération plus lente
+        pour des parties plus longues.
+    */
+
+    if (
+        rushType !== "danger"
+    ) {
+
+        speed += 0.002;
+
+        speed =
+            Math.min(
+                speed,
+                10
+            );
+    }
+
+
+    /* ---------------------------------
+       RUSH
+    --------------------------------- */
+
+    if (
+        rushType === null
+    ) {
+
+        rushCooldown--;
+
+
+        if (
+            rushCooldown <= 0
+        ) {
+
+            startRush();
+        }
+
+    } else {
+
+        rushTimer--;
+
+
+        /*
+            DANGER RUSH
+        */
+
+        if (
+            rushType === "danger"
+        ) {
+
+            /*
+                Accélération temporaire.
+            */
+
+            speed += 0.01;
+
+            speed =
+                Math.min(
+                    speed,
+                    normalSpeedBeforeRush + 3
+                );
+        }
+
+
+        /*
+            GEM RUSH
+        */
+
+        if (
+            rushType === "gem"
+        ) {
+
+            /*
+                Le jeu ralentit légèrement
+                pour laisser le temps de
+                récupérer les gemmes.
+            */
+
+            speed =
+                Math.max(
+                    1.5,
+                    speed
+                );
+        }
+
+
+        if (
+            rushTimer <= 0
+        ) {
+
+            endRush();
+        }
+    }
+
+
+    /* ---------------------------------
+       APPARITION OBSTACLES
+    --------------------------------- */
+
+    spawnTimer--;
+
+
+    if (
+        spawnTimer <= 0
+    ) {
+
+        /*
+            GEM RUSH :
+            aucun obstacle.
+        */
+
+        if (
+            rushType !== "gem"
+        ) {
+
+            spawnObstacle();
+        }
+
+
+        /*
+            Danger Rush :
+            obstacles beaucoup plus fréquents.
+        */
+
+        if (
+            rushType === "danger"
+        ) {
+
+            spawnTimer =
+                Math.max(
+                    25,
+                    55 -
+                    speed * 2
+                );
+
+        } else {
+
+            spawnTimer =
+                Math.max(
+                    55,
+                    125 -
+                    speed * 5
+                );
+        }
+    }
+
+
+    /* ---------------------------------
+       OBSTACLES
+    --------------------------------- */
+
+    for (
+        let i =
+        obstacles.length - 1;
+
+        i >= 0;
+
+        i--
+    ) {
+
+        const obstacle =
+            obstacles[i];
+
+
+        /* =========================
+           VITESSE DE L'OBSTACLE
+        ========================= */
+
+        if (
+            obstacle.type === "fast"
+        ) {
+
+            /*
+                ROUGE :
+                rapide
+            */
+
+            obstacle.y +=
+                speed + 4;
+
+        } else {
+
+            /*
+                ROSE / JAUNE :
+                vitesse normale
+            */
+
+            obstacle.y +=
+                speed;
+        }
+
+
+        /* =========================
+           MOUVEMENT JAUNE
+        ========================= */
+
+        if (
+            obstacle.type === "moving"
+        ) {
+
+            /*
+                Mouvement horizontal
+                volontairement lent.
+            */
+
+            obstacle.x +=
+                obstacle.moveSpeed *
+                obstacle.moveDirection;
+
+
+            if (
+                obstacle.x <
+                obstacle.baseX -
+                obstacle.moveRange
+            ) {
+
+                obstacle.moveDirection =
+                    1;
+            }
+
+
+            if (
+                obstacle.x >
+                obstacle.baseX +
+                obstacle.moveRange
+            ) {
+
+                obstacle.moveDirection =
+                    -1;
+            }
+        }
+
+
+        /* =========================
+           COLLISION
+        ========================= */
+
+        if (
+            collision(
+                player,
+                obstacle
+            )
+        ) {
+
+            gameOver();
+
+            return;
+        }
+
+
+        /* =========================
+           SUPPRESSION
+        ========================= */
+
+        if (
+            obstacle.y >
+            H + 100
+        ) {
+
+            obstacles.splice(
+                i,
+                1
+            );
+        }
+    }
+
+
+    /* ---------------------------------
+       GEMMES
+    --------------------------------- */
+
+    bonusTimer--;
+
+
+    if (
+        bonusTimer <= 0
+    ) {
+
+        /*
+            GEM RUSH :
+            beaucoup plus de gemmes.
+        */
+
+        if (
+            rushType === "gem"
+        ) {
+
+            /*
+                On crée plusieurs gemmes.
+            */
+
+            spawnBonus();
+
+            spawnBonus();
+
+            spawnBonus();
+
+            bonusTimer = 25;
+
+        } else {
+
+            spawnBonus();
+
+            bonusTimer =
+                150 +
+                Math.random() * 70;
+        }
+    }
+
+
+    /* ---------------------------------
+       COLLECTE GEMMES
+    --------------------------------- */
+
+    for (
+        let i =
+        bonuses.length - 1;
+
+        i >= 0;
+
+        i--
+    ) {
+
+        const bonus =
+            bonuses[i];
+
+
+        bonus.y +=
+            speed;
+
+
+        const bonusBox = {
+
+            x: bonus.x,
+
+            y: bonus.y,
+
+            width: bonus.size,
+
+            height: bonus.size
+        };
+
+
+        if (
+            collision(
+                player,
+                bonusBox
+            )
+        ) {
+
+            gems += 1;
+
+
+            localStorage.setItem(
+                "cubeRushGems",
+                gems
+            );
+
+
+            document.getElementById(
+                "gemCount"
+            ).textContent =
+                gems;
+
+
+            createParticles(
+
+                bonus.x +
+                bonus.size / 2,
+
+                bonus.y +
+                bonus.size / 2
+            );
+
+
+            bonuses.splice(
+                i,
+                1
+            );
+
+
+            continue;
+        }
+
+
+        if (
+            bonus.y >
+            H + 50
+        ) {
+
+            bonuses.splice(
+                i,
+                1
+            );
+        }
+    }
+
+
+    /* ---------------------------------
+       PARTICULES
+    --------------------------------- */
+
+    for (
+        let i =
+        particles.length - 1;
+
+        i >= 0;
+
+        i--
+    ) {
+
+        const particle =
+            particles[i];
+
+
+        particle.x +=
+            particle.vx;
+
+        particle.y +=
+            particle.vy;
+
+
+        particle.life--;
+
+
+        if (
+            particle.life <= 0
+        ) {
+
+            particles.splice(
+                i,
+                1
+            );
+        }
+    }
+}
+
+
+/* =====================================================
+   GAME OVER
+===================================================== */
+
+function gameOver() {
+
+    gameRunning = false;
+
+
+    createParticles(
+
+        player.x +
+        player.size / 2,
+
+        player.y +
+        player.size / 2
+    );
+
+
+    if (
+        score >
+        best
+    ) {
+
+        best =
+            score;
+
+
+        localStorage.setItem(
+            "cubeRushBest",
+            best
+        );
+    }
+
+
+    localStorage.setItem(
+        "cubeRushGems",
+        gems
+    );
+
+
+    document.getElementById(
+        "finalScore"
+    ).textContent =
+        "Score : " +
+        score +
+        " m";
+
+
+    document.getElementById(
+        "best"
+    ).textContent =
+        "Record : " +
+        best +
+        " m";
+
+
+    document.getElementById(
+        "gemCount"
+    ).textContent =
+        gems;
+
+
+    document.getElementById(
+        "gameOver"
+    ).style.display =
+        "flex";
+}
+
+
+/* =====================================================
+   DESSIN
+===================================================== */
+
+function draw() {
+
+    /* ---------------------------------
+       FOND
+    --------------------------------- */
+
+    const gradient =
+        ctx.createLinearGradient(
+            0,
+            0,
+            0,
+            H
+        );
+
+
+    gradient.addColorStop(
+        0,
+        "#05051a"
+    );
+
+
+    gradient.addColorStop(
+        1,
+        "#17052e"
+    );
+
+
+    ctx.fillStyle =
+        gradient;
+
+
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+
+    /* ---------------------------------
+       GRILLE
+    --------------------------------- */
+
+    ctx.strokeStyle =
+        "rgba(120,80,255,0.15)";
+
+
+    ctx.lineWidth = 1;
+
+
+    const gridSize = 50;
+
+
+    for (
+        let x = 0;
+        x < W;
+        x += gridSize
+    ) {
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            x,
+            0
+        );
+
+        ctx.lineTo(
+            x,
+            H
+        );
+
+        ctx.stroke();
+    }
+
+
+    /* ---------------------------------
+       PISTE
+    --------------------------------- */
+
+    ctx.fillStyle =
+        "#101020";
+
+
+    ctx.fillRect(
+
+        20,
+
+        H - 200,
+
+        W - 40,
+
+        100
+    );
+
+
+    ctx.strokeStyle =
+        "#8b5cff";
+
+
+    ctx.lineWidth = 3;
+
+
+    ctx.strokeRect(
+
+        20,
+
+        H - 200,
+
+        W - 40,
+
+        100
+    );
+
+
+    /* ---------------------------------
+       OBSTACLES
+    --------------------------------- */
+
+    for (
+        const obstacle
+        of obstacles
+    ) {
+
+        let color = "#ff2bd6";
+
+
+        /*
+            ROSE = normal
+            JAUNE = mobile
+            ROUGE = rapide
+        */
+
+        if (
+            obstacle.type === "moving"
+        ) {
+
+            color = "#ffe600";
+
+        } else if (
+            obstacle.type === "fast"
+        ) {
+
+            color = "#ff3030";
+        }
+
+
+        ctx.fillStyle =
+            color;
+
+
+        ctx.shadowBlur = 20;
+
+        ctx.shadowColor =
+            color;
+
+
+        ctx.fillRect(
+
+            obstacle.x,
+
+            obstacle.y,
+
+            obstacle.width,
+
+            obstacle.height
+        );
+
+
+        ctx.shadowBlur = 0;
+
+
+        ctx.strokeStyle =
+            "#ffffff";
+
+
+        ctx.lineWidth = 2;
+
+
+        ctx.strokeRect(
+
+            obstacle.x,
+
+            obstacle.y,
+
+            obstacle.width,
+
+            obstacle.height
+        );
+    }
+
+
+    /* ---------------------------------
+       GEMMES
+    --------------------------------- */
+
+    for (
+        const bonus
+        of bonuses
+    ) {
+
+        ctx.save();
+
+
+        ctx.translate(
+
+            bonus.x +
+            bonus.size / 2,
+
+            bonus.y +
+            bonus.size / 2
+        );
+
+
+        ctx.rotate(
+            Date.now() * 0.003
+        );
+
+
+        ctx.shadowBlur = 25;
+
+        ctx.shadowColor =
+            "#00ffff";
+
+
+        ctx.fillStyle =
+            "#00ffff";
+
+
+        ctx.fillRect(
+
+            -bonus.size / 2,
+
+            -bonus.size / 2,
+
+            bonus.size,
+
+            bonus.size
+        );
+
+
+        ctx.shadowBlur = 0;
+
+
+        ctx.restore();
+    }
+
+
+    /* ---------------------------------
+       CUBE
+    --------------------------------- */
+
+    if (
+        player !== null
+    ) {
+
+        ctx.save();
+
+
+        ctx.translate(
+
+            player.x +
+            player.size / 2,
+
+            player.y +
+            player.size / 2
+        );
+
+
+        ctx.rotate(
+            player.vx * 0.04
+        );
+
+
+        ctx.shadowBlur = 25;
+
+        ctx.shadowColor =
+            "#8b5cff";
+
+
+        ctx.fillStyle =
+            "#8b5cff";
+
+
+        ctx.fillRect(
+
+            -player.size / 2,
+
+            -player.size / 2,
+
+            player.size,
+
+            player.size
+        );
+
+
+        ctx.shadowBlur = 0;
+
+
+        ctx.strokeStyle =
+            "#ffffff";
+
+
+        ctx.lineWidth = 2;
+
+
+        ctx.strokeRect(
+
+            -player.size / 2,
+
+            -player.size / 2,
+
+            player.size,
+
+            player.size
+        );
+
+
+        ctx.restore();
+    }
+
+
+    /* ---------------------------------
+       PARTICULES
+    --------------------------------- */
+
+    for (
+        const particle
+        of particles
+    ) {
+
+        ctx.globalAlpha =
+            particle.life / 30;
+
+
+        ctx.fillStyle =
+            "#8b5cff";
+
+
+        ctx.fillRect(
+
+            particle.x,
+
+            particle.y,
+
+            5,
+
+            5
+        );
+    }
+
+
+    ctx.globalAlpha = 1;
+}
+
+
+/* =====================================================
+   BOUCLE
+===================================================== */
+
+function loop() {
+
+    update();
+
+    draw();
+
+    requestAnimationFrame(
+        loop
+    );
+}
+
+
+loop();
+
+</script>
+
+</body>
+</html>
